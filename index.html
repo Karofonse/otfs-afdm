@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Laboratorio interactivo de OTFS y AFDM: Doppler, canal en dos dominios, rejilla OTFS y chirps de AFDM.">
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Laboratorio OTFS y AFDM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap">
+<style>
+/* Layout: una historia vertical en seis estaciones; cada estación tiene texto corto a la izquierda y un experimento interactivo. Mundo único oscuro y neón, igual a la presentación. */
+:root {
+  color-scheme: dark;
+  --bg: #07071A;
+  --bg2: #110D30;
+  --ink: #F4F1FF;
+  --soft: #C4BFE8;
+  --mag: #FF4FA3;
+  --vio: #9D99FF;
+  --card: rgba(255, 255, 255, 0.06);
+  --line: rgba(255, 255, 255, 0.18);
+  --plot: #0B0A24;
+  --ok: #7BE0B5;
+  --warn: #FFC66B;
+  --font: 'Poppins', 'Segoe UI', Arial, sans-serif;
+}
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 17px; line-height: 1.55; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+* { box-sizing: border-box; }
+h1, h2, h3, p { margin: 0; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+.nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: rgba(7, 7, 26, 0.92); border-bottom: 1px solid var(--line); }
+.nav .wrap { display: flex; align-items: center; gap: 8px 20px; flex-wrap: wrap; padding-block: 10px; }
+.brand { font-weight: 600; letter-spacing: 0.18em; font-size: 13px; margin-right: auto; }
+.brand span { color: var(--mag); }
+.nav a { color: var(--soft); text-decoration: none; font-size: 14px; padding: 4px 2px; border-bottom: 2px solid transparent; }
+.nav a:hover, .nav a:focus-visible, .nav a.on { color: var(--ink); border-bottom-color: var(--mag); outline: none; }
+.bar { height: 3px; background: linear-gradient(90deg, var(--vio), var(--mag)); width: 0; }
+
+.hero { position: relative; overflow: hidden; background: linear-gradient(155deg, #07071A 0%, #150F3A 55%, #4A1560 100%); }
+.hero canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero .wrap { position: relative; padding-block: 72px 96px; }
+.tag { font-size: 13px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink); }
+.tag b { color: var(--mag); font-weight: 600; }
+h1 { font-weight: 300; font-size: clamp(44px, 9vw, 104px); letter-spacing: 0.06em; line-height: 1.05; margin-top: 14px; }
+.hero p.sub { font-weight: 300; font-size: clamp(18px, 2.6vw, 26px); color: var(--soft); max-width: 34ch; margin-top: 18px; }
+.cta { display: inline-block; margin-top: 30px; padding: 12px 22px; border-radius: 999px; background: var(--mag); color: #1A0B2E; font-weight: 600; text-decoration: none; }
+.cta:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+section.st { padding-block: 64px; border-top: 1px solid var(--line); }
+section.st.alt { background: var(--bg2); }
+h2 { font-weight: 300; font-size: clamp(26px, 4.2vw, 42px); letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.15; margin-top: 10px; text-wrap: balance; }
+.slides { display: inline-block; margin-top: 12px; font-size: 13px; color: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; }
+.two { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 36px; margin-top: 28px; align-items: start; }
+.txt { display: flex; flex-direction: column; gap: 14px; max-width: 62ch; }
+.txt p { color: var(--soft); }
+.txt p strong { color: var(--ink); font-weight: 600; }
+.ana { border-left: 3px solid var(--mag); padding-left: 14px; color: var(--ink); }
+.lab { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.lab h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--vio); }
+canvas.plot { display: block; width: 100%; background: var(--plot); border-radius: 14px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.ctl label { font-size: 14px; color: var(--soft); }
+.ctl input[type=range] { flex: 1 1 180px; accent-color: var(--mag); min-width: 0; }
+select, button.b { font: inherit; font-size: 14px; color: var(--ink); background: rgba(255, 255, 255, 0.08); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+button.b:hover { border-color: var(--mag); }
+button.b:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--mag); outline-offset: 2px; }
+button.b[aria-pressed=true] { background: var(--mag); border-color: var(--mag); color: #1A0B2E; font-weight: 600; }
+.read { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.read div { background: rgba(0, 0, 0, 0.25); border-radius: 14px; padding: 12px 14px; min-width: 0; }
+.read .k { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--soft); }
+.read .v { font-size: clamp(20px, 3vw, 28px); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; border-radius: 999px; padding: 5px 14px; font-size: 14px; font-weight: 600; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--mag); }
+.cap { font-size: 14px; color: var(--soft); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--soft); }
+.legend i { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.trio canvas { aspect-ratio: 1; cursor: pointer; }
+.trio .cap, .pair .cap { margin-top: 6px; }
+.chain { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
+.chain span { background: rgba(0, 0, 0, 0.25); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; }
+.chain em { color: var(--mag); font-style: normal; }
+.formula { font-variant-numeric: tabular-nums; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--mag); border-radius: 14px; padding: 10px 14px; font-size: 15px; overflow-x: auto; white-space: nowrap; }
+
+.tw { overflow-x: auto; margin-top: 28px; border: 1px solid var(--line); border-radius: 18px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 15px; }
+th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-weight: 600; background: rgba(255, 255, 255, 0.06); }
+th.o { color: var(--mag); } th.a { color: var(--vio); }
+td:first-child { color: var(--soft); }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; }
+.card h3 { font-size: 17px; font-weight: 600; }
+.card p { font-size: 14px; color: var(--soft); margin-top: 6px; }
+.quiz { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
+.q { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.q h3 { font-size: 16px; font-weight: 600; }
+.q .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+.q .fb { font-size: 14px; min-height: 1.5em; color: var(--soft); }
+.score { margin-top: 18px; font-size: 18px; }
+.big3 .card .n { font-size: 54px; font-weight: 300; line-height: 1; }
+footer { border-top: 1px solid var(--line); padding-block: 28px; color: var(--soft); font-size: 14px; }
+
+@media (max-width: 820px) {
+  .two { grid-template-columns: minmax(0, 1fr); }
+  .cards, .quiz { grid-template-columns: minmax(0, 1fr); }
+  .read { grid-template-columns: minmax(0, 1fr); }
+  .nav a { font-size: 13px; }
+}
+@media (max-width: 520px) { .trio { grid-template-columns: minmax(0, 1fr); } .trio canvas { max-width: 280px; } .pair { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="Estaciones">
+  <div class="wrap">
+    <span class="brand"><span>/</span> OTFS · AFDM</span>
+    <a href="#doppler" data-go="doppler">1 Doppler</a>
+    <a href="#canal" data-go="canal">2 Canal</a>
+    <a href="#otfs" data-go="otfs">3 OTFS</a>
+    <a href="#afdm" data-go="afdm">4 AFDM</a>
+    <a href="#comparar" data-go="comparar">5 Comparar</a>
+    <a href="#reto" data-go="reto">6 Reto</a>
+  </div>
+  <div class="bar" id="bar"></div>
+</nav>
+
+<header class="hero">
+  <canvas id="heroC" aria-hidden="true"></canvas>
+  <div class="wrap">
+    <p class="tag"><b>/</b> Tema 8 · Formas de onda avanzadas</p>
+    <h1>OTFS · AFDM</h1>
+    <p class="sub">Un laboratorio para probar con tus manos lo que Pedro y Andrea explican en la exposición.</p>
+    <a class="cta" href="#doppler" data-go="doppler">Empezar por el Doppler</a>
+  </div>
+</header>
+
+<section class="st" id="doppler">
+  <div class="wrap">
+    <p class="tag"><b>/</b> Estación 1</p>
+    <h2>¿Cuánto se corre la frecuencia?</h2>
+    <span class="slides">Va con las diapositivas 3 y 4</span>
+    <div class="two">
+      <div class="txt">
+        <p>Cuando el transmisor o el receptor se mueven, la frecuencia que llega cambia. Es el <strong>efecto Doppler</strong>, el mismo de la sirena de una ambulancia.</p>
+        <p>OFDM separa sus subportadoras una distancia Δf. Mientras el Doppler sea pequeño frente a Δf, todo funciona. Cuando se acerca a Δf, cada subportadora se mete en la vecina: eso es la <strong>ICI</strong>, interferencia entre portadoras.</p>
+        <p class="formula">f_D = v · f_c / c</p>
+        <p class="ana">Prueba: sube la velocidad hasta el satélite y mira cómo las curvas rosadas dejan de coincidir con las líneas donde muestrea el receptor.</p>
+      </div>
+      <div class="lab">
+        <h3>Experimento · calculadora de Doppler</h3>
+        <div class="ctl" role="group" aria-label="Escenarios">
+          <button class="b" data-v="5">Peatón</button>
+          <button class="b" data-v="120">Carro</button>
+          <button class="b" data-v="500">Tren</button>
+          <button class="b" data-v="900">Avión</button>
+          <button class="b" data-v="27360">Satélite LEO</button>
+        </div>
+        <div class="ctl">
+          <label for="vS">Velocidad</label>
+          <input type="range" id="vS" min="0" max="1000" value="313">
+        </div>
+        <div class="ctl">
+          <label for="fcS">Portadora</label>
+          <select id="fcS"><option value="0.7">700 MHz</option><option value="2">2 GHz</option><option value="3.5" selected>3,5 GHz</option><option value="28">28 GHz</option></select>
+          <label for="dfS">Δf</label>
+          <select id="dfS"><option value="15" selected>15 kHz</option><option value="30">30 kHz</option><option value="120">120 kHz</option></select>
+        </div>
+        <div class="read">
+          <div><p class="k">Velocidad</p><p class="v" id="vO">—</p></div>
+          <div><p class="k">Doppler</p><p class="v" id="fdO">—</p></div>
+          <div><p class="k">Frente a Δf</p><p class="v" id="rO">—</p></div>
+        </div>
+        <p><span class="pill ok" id="stO">—</span></p>
+        <canvas class="plot" id="dopC" style="height:210px" role="img" aria-label="Subportadoras transmitidas y recibidas con corrimiento Doppler"></canvas>
+        <div class="legend"><span><i style="background:#9D99FF"></i>Subportadoras transmitidas</span><span><i style="background:#FF4FA3"></i>Como llegan</span><span><i style="background:#FFFFFF"></i>Donde muestrea el receptor</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="st alt" id="canal">
+  <div class="wrap">
+    <p class="tag"><b>/</b> Estación 2</p>
+    <h2>El mismo canal, dos mapas</h2>
+    <span class="slides">Va con la diapositiva 5</span>
+    <div class="two">
+      <div class="txt">
+        <p>A la izquierda está el canal como lo ve OFDM: <strong>tiempo–frecuencia</strong>. Las zonas oscuras son desvanecimientos. Con movimiento, ese mapa no se queda quieto.</p>
+        <p>A la derecha está el mismo canal en <strong>retardo–Doppler</strong>: un punto por cada camino físico. El retardo depende de la distancia y el Doppler de la velocidad.</p>
+        <p>Ese segundo mapa es <strong>disperso</strong> (pocos puntos) y <strong>estable</strong> (los puntos no se mueven). Es la razón de ser de OTFS.</p>
+        <p class="ana">Prueba: pon la movilidad en cero y el mapa de la izquierda se congela. Súbela y enciende o apaga caminos: la izquierda cambia por completo, la derecha solo gana o pierde un punto.</p>
+      </div>
+      <div class="lab">
+        <h3>Experimento · arma tu canal</h3>
+        <div class="ctl" role="group" aria-label="Caminos">
+          <button class="b" data-p="0" aria-pressed="true">Rayo directo</button>
+          <button class="b" data-p="1" aria-pressed="true">Edificio</button>
+          <button class="b" data-p="2" aria-pressed="true">Camión</button>
+        </div>
+        <div class="ctl">
+          <label for="mS">Movilidad</label>
+          <input type="range" id="mS" min="0" max="100" value="60">
+          <button class="b" id="playB" aria-pressed="true">Pausar</button>
+        </div>
+        <div class="pair">
+          <div><canvas class="plot" id="tfC" style="height:200px" role="img" aria-label="Mapa del canal en tiempo–frecuencia"></canvas><p class="cap">Tiempo–frecuencia. Horizontal: tiempo. Vertical: frecuencia.</p></div>
+          <div><canvas class="plot" id="ddC" style="height:200px" role="img" aria-label="Mapa del canal en retardo–Doppler"></canvas><p class="cap">Retardo–Doppler. Horizontal: retardo. Vertical: Doppler.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="st" id="otfs">
+  <div class="wrap">
+    <p class="tag"><b>/</b> Estación 3</p>
+    <h2>OTFS: un símbolo, toda la rejilla</h2>
+    <span class="slides">Va con las diapositivas 6 a 9</span>
+    <div class="two">
+      <div class="txt">
+        <p><strong>OTFS</strong> (Orthogonal Time Frequency Space, Hadani, 2017) escribe los símbolos QAM en una rejilla retardo–Doppler de M × N casillas.</p>
+        <p>La <strong>ISFFT</strong> reparte cada símbolo por todo el plano tiempo–frecuencia. Ningún símbolo depende de una sola casilla, así que ninguno se pierde en un desvanecimiento.</p>
+        <div class="chain"><span>Símbolos</span><em>→</em><span>ISFFT</span><em>→</em><span>Modulador OFDM</span><em>→</em><span>Canal</span><em>→</em><span>Demodulador + SFFT</span></div>
+        <p>En la práctica, OTFS es OFDM más una precodificación en dos dimensiones. En el receptor, cada símbolo llega con <strong>una copia por camino</strong>, desplazada en retardo y en Doppler.</p>
+        <p class="ana">Prueba: toca cualquier casilla de la primera rejilla. La del medio siempre queda llena; la tercera muestra tres copias, una por camino.</p>
+      </div>
+      <div class="lab">
+        <h3>Experimento · coloca un símbolo</h3>
+        <div class="trio">
+          <div><canvas class="plot" id="oA" role="img" aria-label="Rejilla retardo–Doppler de entrada; toca una casilla"></canvas><p class="cap">1 · Retardo–Doppler: tú pones el símbolo.</p></div>
+          <div><canvas class="plot" id="oB" style="cursor:default" role="img" aria-label="Rejilla tiempo–frecuencia tras la ISFFT"></canvas><p class="cap">2 · Tiempo–frecuencia: misma energía en las 64 casillas, solo cambia la fase.</p></div>
+          <div><canvas class="plot" id="oC" style="cursor:default" role="img" aria-label="Rejilla retardo–Doppler recibida"></canvas><p class="cap">3 · Recibido: una copia por camino.</p></div>
+        </div>
+        <div class="ctl"><button class="b" id="rndB">Símbolo al azar</button><span class="cap" id="oT">—</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="st alt" id="afdm">
+  <div class="wrap">
+    <p class="tag"><b>/</b> Estación 4</p>
+    <h2>AFDM: de tonos a chirps</h2>
+    <span class="slides">Va con las diapositivas 10 a 12</span>
+    <div class="two">
+      <div class="txt">
+        <p><strong>AFDM</strong> (Affine Frequency Division Multiplexing, Bemani, Ksairi y Kountouris, 2021) deja los datos en un solo eje, como OFDM, pero cambia la subportadora: en vez de un tono usa un <strong>chirp</strong>, una señal cuya frecuencia sube de forma lineal.</p>
+        <p>Se genera con la <strong>DAFT</strong>: una IFFT entre dos multiplicaciones por chirp.</p>
+        <p class="formula">s[n] = (1/√N) · Σ x[m] · exp( j2π ( c₁n² + c₂m² + nm/N ) )</p>
+        <p>El parámetro <strong>c₁</strong> es la pendiente. Se ajusta al Doppler máximo para que cada camino caiga en un lugar distinto del receptor.</p>
+        <p class="ana">Prueba: lleva c₁ a cero. Las líneas quedan horizontales y la onda es un tono puro: AFDM se convirtió en OFDM.</p>
+      </div>
+      <div class="lab">
+        <h3>Experimento · inclina la subportadora</h3>
+        <div class="ctl"><label for="cS">Pendiente c₁</label><input type="range" id="cS" min="0" max="100" value="70"></div>
+        <div class="ctl"><label for="sS">Subportadora</label><input type="range" id="sS" min="0" max="5" value="2" step="1"></div>
+        <p><span class="pill bad" id="cO">—</span></p>
+        <canvas class="plot" id="wC" style="height:120px" role="img" aria-label="Forma de onda de la subportadora elegida"></canvas>
+        <p class="cap">La subportadora elegida en el tiempo.</p>
+        <canvas class="plot" id="lC" style="height:190px" role="img" aria-label="Subportadoras en el plano tiempo–frecuencia"></canvas>
+        <p class="cap">Todas las subportadoras en tiempo–frecuencia. Al salir por arriba vuelven a entrar por abajo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="st" id="comparar">
+  <div class="wrap">
+    <p class="tag"><b>/</b> Estación 5</p>
+    <h2>Lado a lado</h2>
+    <span class="slides">Va con las diapositivas 13 y 14</span>
+    <div class="tw">
+      <table>
+        <tr><th>Criterio</th><th>OFDM</th><th class="o">OTFS</th><th class="a">AFDM</th></tr>
+        <tr><td>Dominio de los datos</td><td>Tiempo–frecuencia</td><td>Retardo–Doppler</td><td>Afín (DAFT)</td></tr>
+        <tr><td>Portadora base</td><td>Tonos</td><td>Pulsos 2D</td><td>Chirps</td></tr>
+        <tr><td>Transformada</td><td>IFFT, 1D</td><td>ISFFT 2D + OFDM</td><td>IDAFT, 1D</td></tr>
+        <tr><td>Con Doppler alto</td><td>Sufre ICI</td><td>Robusta</td><td>Robusta</td></tr>
+        <tr><td>Diversidad</td><td>No la aprovecha</td><td>Completa (asintótica)</td><td>Completa</td></tr>
+        <tr><td>Guarda de pilotos</td><td>Baja en canal lento</td><td>Alta: guarda en 2D</td><td>Menor: guarda en 1D</td></tr>
+        <tr><td>Receptor</td><td>Sencillo</td><td>Complejo</td><td>Intermedio</td></tr>
+      </table>
+    </div>
+    <div class="cards">
+      <div class="card"><h3>Trenes veloces</h3><p>Hasta 500 km/h con cientos de usuarios a bordo.</p></div>
+      <div class="card"><h3>Vehículos conectados (V2X)</h3><p>Dos carros que se cruzan duplican la velocidad relativa.</p></div>
+      <div class="card"><h3>Satélites LEO (NTN)</h3><p>Redes no terrestres con Doppler de decenas de kHz.</p></div>
+      <div class="card"><h3>Drones y aviación</h3><p>Enlaces aire–tierra con línea de vista y mucha velocidad.</p></div>
+      <div class="card"><h3>Radar + datos (ISAC)</h3><p>Retardo y Doppler son distancia y velocidad: lo que mide un radar.</p></div>
+      <div class="card"><h3>Acústica submarina</h3><p>El sonido viaja lento, así que el Doppler relativo es enorme.</p></div>
+    </div>
+    <p class="cap" style="margin-top:18px">Hoy 5G NR usa CP-OFDM y DFT-s-OFDM. OTFS y AFDM son candidatas a forma de onda en 6G.</p>
+  </div>
+</section>
+
+<section class="st alt" id="reto">
+  <div class="wrap">
+    <p class="tag"><b>/</b> Estación 6</p>
+    <h2>Reto de cuatro preguntas</h2>
+    <span class="slides">Va con la diapositiva 15</span>
+    <div class="quiz" id="quiz"></div>
+    <p class="score" id="score" aria-live="polite">Llevas 0 de 4.</p>
+    <div class="cards big3">
+      <div class="card"><p class="n">1</p><h3>El problema</h3><p>El Doppler rompe la ortogonalidad de OFDM cuando hay alta movilidad.</p></div>
+      <div class="card"><p class="n" style="color:var(--mag)">2</p><h3>OTFS cambia el dominio</h3><p>Datos en retardo–Doppler, donde el canal es disperso y casi no cambia.</p></div>
+      <div class="card"><p class="n" style="color:var(--vio)">3</p><h3>AFDM cambia la portadora</h3><p>Chirps en lugar de tonos: una sola dimensión y menos overhead.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer><div class="wrap">Pedro y Andrea · Radiocomunicaciones · Tema 8: formas de onda avanzadas.</div></footer>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var MAG = '#FF4FA3', VIO = '#9D99FF', INK = '#F4F1FF';
+
+  function fit(c) {
+    var r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    var w = Math.max(10, Math.round(r.width)), h = Math.max(10, Math.round(r.height));
+    if (c.width !== w * d || c.height !== h * d) { c.width = w * d; c.height = h * d; }
+    var x = c.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0); x.clearRect(0, 0, w, h);
+    return { x: x, w: w, h: h };
+  }
+  function mix(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function rgb(c) { return 'rgb(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ')'; }
+  var C0 = [11, 10, 36], CV = [74, 63, 207], CM = [255, 79, 163], CW = [255, 255, 255], CVL = [124, 112, 255];
+  function heat(t) { t = Math.max(0, Math.min(1, t)); return t < 0.4 ? mix(C0, CV, t / 0.4) : t < 0.75 ? mix(CV, CM, (t - 0.4) / 0.35) : mix(CM, CW, (t - 0.75) / 0.25); }
+
+  /* navegación y barra de progreso */
+  document.querySelectorAll('[data-go]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var t = $(a.getAttribute('data-go')); if (!t) return;
+      e.preventDefault(); t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
+  });
+  var secs = ['doppler', 'canal', 'otfs', 'afdm', 'comparar', 'reto'].map($);
+  function onScroll() {
+    var el = document.scrollingElement || document.documentElement;
+    var max = el.scrollHeight - el.clientHeight;
+    $('bar').style.width = (max > 0 ? (el.scrollTop / max) * 100 : 0) + '%';
+    var cur = '';
+    secs.forEach(function (s) { if (s.getBoundingClientRect().top < 160) cur = s.id; });
+    document.querySelectorAll('.nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-go') === cur); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  /* portada: ondas */
+  var heroT = 0;
+  function drawHero() {
+    var g = fit($('heroC')), x = g.x, w = g.w, h = g.h;
+    for (var k = 0; k < 5; k++) {
+      var gr = x.createLinearGradient(0, 0, w, 0);
+      gr.addColorStop(0, 'rgba(157,153,255,0)'); gr.addColorStop(0.35, 'rgba(255,255,255,' + (0.85 - k * 0.15) + ')');
+      gr.addColorStop(0.7, 'rgba(255,79,163,' + (0.9 - k * 0.15) + ')'); gr.addColorStop(1, 'rgba(255,79,163,0)');
+      x.strokeStyle = gr; x.lineWidth = k === 0 ? 2.5 : 1.2; x.beginPath();
+      for (var i = 0; i <= w; i += 6) {
+        var u = i / w;
+        var y = h * (0.72 + k * 0.035) + Math.sin(u * 5.2 + heroT + k * 0.5) * h * 0.09 + Math.sin(u * 2.1 - heroT * 0.6) * h * 0.05;
+        if (i === 0) x.moveTo(i, y); else x.lineTo(i, y);
+      }
+      x.stroke();
+    }
+  }
+
+  /* estación 1: Doppler */
+  var vKmh = 120;
+  function sliderToV(s) { return Math.pow(10, 0.5 + (s / 1000) * 3.95); }
+  function vToSlider(v) { return Math.round(((Math.log(v) / Math.LN10) - 0.5) / 3.95 * 1000); }
+  function fmtHz(f) { return f >= 1000 ? (f / 1000).toLocaleString('es', { maximumFractionDigits: f >= 10000 ? 0 : 1 }) + ' kHz' : Math.round(f).toLocaleString('es') + ' Hz'; }
+  function sinc2(u) { if (Math.abs(u) < 1e-6) return 1; var s = Math.sin(Math.PI * u) / (Math.PI * u); return s * s; }
+  function drawDop() {
+    var fc = parseFloat($('fcS').value) * 1e9, df = parseFloat($('dfS').value) * 1e3;
+    var fd = (vKmh / 3.6) * fc / 3e8, r = fd / df;
+    $('vO').textContent = Math.round(vKmh).toLocaleString('es') + ' km/h';
+    $('fdO').textContent = fmtHz(fd);
+    $('rO').textContent = r >= 1 ? r.toLocaleString('es', { maximumFractionDigits: 1 }) + ' × Δf' : (r * 100).toLocaleString('es', { maximumFractionDigits: r < 0.1 ? 1 : 0 }) + ' %';
+    var st = $('stO');
+    if (r < 0.05) { st.className = 'pill ok'; st.textContent = 'OFDM lo tolera'; }
+    else if (r < 0.3) { st.className = 'pill warn'; st.textContent = 'ICI apreciable: la tasa de error sube'; }
+    else { st.className = 'pill bad'; st.textContent = 'OFDM se rompe: hace falta otra forma de onda'; }
+    var g = fit($('dopC')), x = g.x, w = g.w, h = g.h, span = 7, base = h - 22, amp = h - 50;
+    function X(u) { return (u + span / 2) / span * w; }
+    x.setLineDash([4, 5]); x.strokeStyle = 'rgba(255,255,255,0.55)'; x.lineWidth = 1;
+    for (var k = -3; k <= 3; k++) { x.beginPath(); x.moveTo(X(k), 12); x.lineTo(X(k), base); x.stroke(); }
+    x.setLineDash([]);
+    function curves(shift, col, lw) {
+      x.strokeStyle = col; x.lineWidth = lw;
+      for (var k = -6; k <= 6; k++) {
+        x.beginPath();
+        for (var px = 0; px <= w; px += 2) { var u = px / w * span - span / 2; var y = base - sinc2(u - k - shift) * amp; if (px === 0) x.moveTo(px, y); else x.lineTo(px, y); }
+        x.stroke();
+      }
+    }
+    curves(0, 'rgba(157,153,255,0.55)', 1.5);
+    var sh = r % 1; if (r >= 1 && sh < 0.02) sh = 0.5;
+    curves(r < 1 ? r : sh, MAG, 2);
+    x.fillStyle = INK; x.font = '12px Poppins, Arial, sans-serif';
+    x.fillText(r >= 1 ? 'Corrida ' + r.toLocaleString('es', { maximumFractionDigits: 1 }) + ' subportadoras' : 'Corrimiento: ' + (r * 100).toFixed(r < 0.1 ? 1 : 0).replace('.', ',') + ' % de Δf', 10, h - 6);
+  }
+  $('vS').addEventListener('input', function () { vKmh = sliderToV(+this.value); drawDop(); });
+  $('fcS').addEventListener('change', drawDop); $('dfS').addEventListener('change', drawDop);
+  document.querySelectorAll('[data-v]').forEach(function (b) {
+    b.addEventListener('click', function () { vKmh = +b.getAttribute('data-v'); $('vS').value = vToSlider(vKmh); drawDop(); });
+  });
+  $('vS').value = vToSlider(vKmh);
+
+  /* estación 2: canal */
+  var paths = [
+    { n: 'Directo', tau: 0.35, nu: 0.0, a: 1.0, on: true },
+    { n: 'Edificio', tau: 1.6, nu: -1.3, a: 0.7, on: true },
+    { n: 'Camión', tau: 2.9, nu: 2.4, a: 0.55, on: true }
+  ];
+  var chT = 0, playing = !reduce;
+  function drawChan() {
+    var mob = +$('mS').value / 100;
+    var g = fit($('tfC')), x = g.x, w = g.w, h = g.h, NX = 44, NY = 22, cw = w / NX, ch = h / NY, sum = 0;
+    paths.forEach(function (p) { if (p.on) sum += p.a; });
+    for (var i = 0; i < NX; i++) for (var j = 0; j < NY; j++) {
+      var t = i / NX + chT, f = j / NY, re = 0, im = 0;
+      for (var k = 0; k < 3; k++) { var p = paths[k]; if (!p.on) continue; var ph = 2 * Math.PI * (p.nu * mob * t - p.tau * f); re += p.a * Math.cos(ph); im += p.a * Math.sin(ph); }
+      x.fillStyle = rgb(heat(sum > 0 ? Math.sqrt(re * re + im * im) / sum : 0));
+      x.fillRect(i * cw, h - (j + 1) * ch, cw + 0.6, ch + 0.6);
+    }
+    g = fit($('ddC')); x = g.x; w = g.w; h = g.h;
+    x.strokeStyle = 'rgba(255,255,255,0.12)'; x.lineWidth = 1;
+    for (var a = 1; a < 8; a++) { x.beginPath(); x.moveTo(a * w / 8, 0); x.lineTo(a * w / 8, h); x.stroke(); }
+    for (var b = 1; b < 6; b++) { x.beginPath(); x.moveTo(0, b * h / 6); x.lineTo(w, b * h / 6); x.stroke(); }
+    x.setLineDash([5, 5]); x.strokeStyle = 'rgba(255,255,255,0.45)'; x.beginPath(); x.moveTo(0, h / 2); x.lineTo(w, h / 2); x.stroke(); x.setLineDash([]);
+    x.font = '12px Poppins, Arial, sans-serif';
+    paths.forEach(function (p) {
+      if (!p.on) return;
+      var px = 18 + p.tau / 3.4 * (w - 90), py = h / 2 - p.nu * mob / 2.8 * (h / 2 - 16);
+      var gr = x.createRadialGradient(px, py, 0, px, py, 16 * p.a + 6);
+      gr.addColorStop(0, '#FFFFFF'); gr.addColorStop(0.35, MAG); gr.addColorStop(1, 'rgba(255,79,163,0)');
+      x.fillStyle = gr; x.beginPath(); x.arc(px, py, 16 * p.a + 6, 0, 7); x.fill();
+      x.fillStyle = INK; x.fillText(p.n, px + 14, py - 8);
+    });
+  }
+  document.querySelectorAll('[data-p]').forEach(function (b) {
+    b.addEventListener('click', function () { var p = paths[+b.getAttribute('data-p')]; p.on = !p.on; b.setAttribute('aria-pressed', p.on ? 'true' : 'false'); drawChan(); });
+  });
+  $('mS').addEventListener('input', drawChan);
+  function setPlay(v) { playing = v; $('playB').textContent = v ? 'Pausar' : 'Reproducir'; $('playB').setAttribute('aria-pressed', v ? 'true' : 'false'); }
+  $('playB').addEventListener('click', function () { setPlay(!playing); });
+  setPlay(playing);
+
+  /* estación 3: OTFS */
+  var N = 8, sel = { k: 5, l: 2 };
+  var shifts = [{ dk: 0, dl: 0, a: 1 }, { dk: 0, dl: 2, a: 0.75 }, { dk: 2, dl: 4, a: 0.55 }];
+  function grid(x, w, h) { x.strokeStyle = 'rgba(255,255,255,0.2)'; x.lineWidth = 1; for (var i = 1; i < N; i++) { x.beginPath(); x.moveTo(i * w / N, 0); x.lineTo(i * w / N, h); x.stroke(); x.beginPath(); x.moveTo(0, i * h / N); x.lineTo(w, i * h / N); x.stroke(); } }
+  function drawOtfs() {
+    var g = fit($('oA')), x = g.x, w = g.w, h = g.h, cw = w / N, ch = h / N;
+    x.fillStyle = MAG; x.fillRect(sel.l * cw, h - (sel.k + 1) * ch, cw, ch); grid(x, w, h);
+    g = fit($('oB')); x = g.x; w = g.w; h = g.h; cw = w / N; ch = h / N;
+    for (var n = 0; n < N; n++) for (var m = 0; m < N; m++) {
+      var v = Math.cos(2 * Math.PI * (n * sel.k / N - m * sel.l / N));
+      x.fillStyle = rgb(mix(C0, v >= 0 ? CM : CVL, 0.35 + 0.65 * Math.abs(v)));
+      x.fillRect(n * cw, h - (m + 1) * ch, cw + 0.5, ch + 0.5);
+    }
+    grid(x, w, h);
+    g = fit($('oC')); x = g.x; w = g.w; h = g.h; cw = w / N; ch = h / N;
+    shifts.forEach(function (s) {
+      var k = (sel.k + s.dk) % N, l = (sel.l + s.dl) % N;
+      x.fillStyle = 'rgba(255,79,163,' + s.a + ')'; x.fillRect(l * cw, h - (k + 1) * ch, cw, ch);
+    });
+    grid(x, w, h);
+    $('oT').textContent = 'Símbolo en retardo ' + sel.l + ', Doppler ' + sel.k + '.';
+  }
+  function pick(e) {
+    var c = $('oA'), r = c.getBoundingClientRect();
+    sel.l = Math.max(0, Math.min(N - 1, Math.floor((e.clientX - r.left) / r.width * N)));
+    sel.k = Math.max(0, Math.min(N - 1, N - 1 - Math.floor((e.clientY - r.top) / r.height * N)));
+    drawOtfs();
+  }
+  $('oA').addEventListener('pointerdown', pick);
+  $('rndB').addEventListener('click', function () { sel.k = Math.floor(Math.random() * N); sel.l = Math.floor(Math.random() * N); drawOtfs(); });
+
+  /* estación 4: AFDM */
+  function drawAfdm() {
+    var c = +$('cS').value / 100, m = +$('sS').value, F = 6;
+    var o = $('cO');
+    if (c === 0) { o.className = 'pill ok'; o.textContent = 'c₁ = 0: tonos puros, esto es OFDM'; }
+    else { o.className = 'pill bad'; o.textContent = 'Chirp: barre el ' + Math.round(c * 100) + ' % de la banda en un símbolo'; }
+    function fr(mm, t) { var f = (mm + 0.5) + c * F * t; return ((f % F) + F) % F; }
+    var g = fit($('lC')), x = g.x, w = g.w, h = g.h;
+    for (var mm = 0; mm < F; mm++) {
+      x.strokeStyle = mm === m ? MAG : 'rgba(157,153,255,0.4)'; x.lineWidth = mm === m ? 4 : 2; x.beginPath();
+      var prev = null;
+      for (var px = 0; px <= w; px += 2) { var f = fr(mm, px / w), y = h - f / F * h; if (prev === null || Math.abs(f - prev) > F / 2) x.moveTo(px, y); else x.lineTo(px, y); prev = f; }
+      x.stroke();
+    }
+    g = fit($('wC')); x = g.x; w = g.w; h = g.h;
+    x.strokeStyle = MAG; x.lineWidth = 2; x.beginPath();
+    var ph = 0, steps = w * 2;
+    for (var i = 0; i <= steps; i++) {
+      var t = i / steps; ph += 2 * Math.PI * (1.5 + fr(m, t) * 3.2) / steps;
+      var yy = h / 2 - Math.sin(ph) * (h / 2 - 12);
+      if (i === 0) x.moveTo(0, yy); else x.lineTo(t * w, yy);
+    }
+    x.stroke();
+  }
+  $('cS').addEventListener('input', drawAfdm); $('sS').addEventListener('input', drawAfdm);
+
+  /* estación 6: reto */
+  var QS = [
+    { q: '¿Qué rompe la ortogonalidad de OFDM cuando hay alta movilidad?', o: ['El ruido térmico', 'El efecto Doppler', 'El prefijo cíclico'], a: 1, w: 'El Doppler desplaza las subportadoras y aparece ICI.' },
+    { q: '¿En qué dominio escribe OTFS sus símbolos?', o: ['Retardo–Doppler', 'Tiempo–frecuencia', 'Solo en el tiempo'], a: 0, w: 'Ahí el canal es disperso y casi no cambia.' },
+    { q: '¿Qué forma tienen las subportadoras de AFDM?', o: ['Tonos', 'Pulsos cuadrados', 'Chirps'], a: 2, w: 'Su frecuencia sube de forma lineal y barre la banda.' },
+    { q: 'Si c₁ = c₂ = 0, AFDM se convierte en…', o: ['OTFS', 'OFDM', 'CDMA'], a: 1, w: 'Sin chirps solo queda la IFFT, que es OFDM.' }
+  ];
+  var done = {}, good = 0;
+  QS.forEach(function (Q, qi) {
+    var d = document.createElement('div'); d.className = 'q';
+    var h3 = document.createElement('h3'); h3.textContent = (qi + 1) + '. ' + Q.q; d.appendChild(h3);
+    var op = document.createElement('div'); op.className = 'opts'; d.appendChild(op);
+    var fb = document.createElement('p'); fb.className = 'fb'; fb.setAttribute('aria-live', 'polite'); d.appendChild(fb);
+    Q.o.forEach(function (txt, oi) {
+      var b = document.createElement('button'); b.className = 'b'; b.textContent = txt; op.appendChild(b);
+      b.addEventListener('click', function () {
+        if (oi === Q.a) {
+          b.setAttribute('aria-pressed', 'true'); fb.textContent = 'Correcto. ' + Q.w;
+          if (!done[qi]) { done[qi] = true; good++; $('score').textContent = 'Llevas ' + good + ' de 4.' + (good === 4 ? ' Ya puedes explicar el tema.' : ''); }
+        } else if (!done[qi]) { fb.textContent = 'No es esa. Vuelve a intentarlo.'; }
+      });
+    });
+    $('quiz').appendChild(d);
+  });
+
+  function drawAll() { drawHero(); drawDop(); drawChan(); drawOtfs(); drawAfdm(); onScroll(); }
+  var rz; window.addEventListener('resize', function () { clearTimeout(rz); rz = setTimeout(drawAll, 120); });
+  drawAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+  var last = 0;
+  function loop(ts) {
+    var dt = Math.min(0.05, (ts - last) / 1000 || 0); last = ts;
+    if (!reduce) { heroT += dt * 0.5; if ($('heroC').getBoundingClientRect().bottom > 0) drawHero(); }
+    if (playing) { chT += dt * 0.12; var r = $('tfC').getBoundingClientRect(); if (r.bottom > 0 && r.top < window.innerHeight) drawChan(); }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
