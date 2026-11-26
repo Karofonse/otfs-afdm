@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="robots" content="noindex">
+<style>html{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);box-sizing:border-box}body{margin:0}</style>
+<title>Teleprompter OTFS y AFDM</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap">
+<style>
+/* Layout: app de una sola pantalla para iPad. Arriba, en qué diapositiva va y quién habla; al centro, una sola frase en letra grande; abajo, anterior / reloj / siguiente. Mundo oscuro y neón del laboratorio. */
+:root {
+  color-scheme: dark;
+  --bg: #07071A;
+  --ink: #F4F1FF;
+  --soft: #C4BFE8;
+  --mag: #FF4FA3;
+  --vio: #9D99FF;
+  --ok: #7BE0B5;
+  --warn: #FFC66B;
+  --card: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.2);
+  --font: 'Poppins', 'Segoe UI', Arial, sans-serif;
+  --fs: 1;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+p, h1, h2 { margin: 0; }
+button { font: inherit; color: var(--ink); background: var(--card); border: 1px solid var(--line); border-radius: 18px; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--mag); outline-offset: 2px; }
+.app { height: 100%; display: flex; flex-direction: column; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 12px; gap: 12px; }
+
+.top { display: flex; align-items: center; gap: 10px; }
+.top button, .top .who { flex-shrink: 0; white-space: nowrap; }
+.where { font-size: 17px; font-weight: 600; letter-spacing: 0.06em; color: var(--soft); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.where b { color: var(--ink); font-weight: 600; }
+.who { font-size: 20px; font-weight: 600; border-radius: 999px; padding: 6px 18px; border: 2px solid currentColor; white-space: nowrap; }
+.small { font-size: 15px; padding: 10px 14px; border-radius: 999px; }
+.track { height: 5px; background: rgba(255, 255, 255, 0.12); border-radius: 3px; overflow: hidden; }
+.track i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--vio), var(--mag)); }
+
+.stage { flex: 1; min-height: 0; border: 2px solid var(--line); border-radius: 28px; background: var(--card); display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: clamp(18px, 4vw, 48px); overflow-y: auto; }
+.stage.mine { border-color: var(--me); background: rgba(255, 255, 255, 0.09); }
+.stage.act { border-color: var(--warn); background: rgba(255, 198, 107, 0.08); }
+.stage.other .line { color: var(--soft); }
+.kind { font-size: 18px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--soft); }
+.stage.mine .kind { color: var(--me); }
+.stage.act .kind { color: var(--warn); }
+.line { font-size: calc(clamp(26px, 4.6vw, 54px) * var(--fs)); font-weight: 400; line-height: 1.32; text-wrap: pretty; }
+.stage.act .line { font-size: calc(clamp(22px, 3.6vw, 40px) * var(--fs)); color: var(--warn); }
+.next { font-size: 17px; color: var(--soft); border-top: 1px solid var(--line); padding-top: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.next b { color: var(--ink); font-weight: 600; }
+
+.bot { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 2fr); gap: 12px; align-items: stretch; }
+.nav { font-size: 22px; font-weight: 600; min-height: 76px; padding: 10px 16px; }
+.nav.fwd { background: var(--mag); border-color: var(--mag); color: #1A0B2E; }
+.clockbox { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 150px; border: 1px solid var(--line); border-radius: 18px; padding: 6px 14px; background: rgba(0, 0, 0, 0.3); }
+.clock { font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.delta { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.delta.ok { color: var(--ok); } .delta.late { color: var(--mag); } .delta.early { color: var(--warn); }
+
+.sheet { position: fixed; inset: 0; z-index: 20; background: rgba(7, 7, 26, 0.97); display: flex; flex-direction: column; padding: max(20px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); gap: 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sheet h1 { font-weight: 300; font-size: clamp(30px, 6vw, 56px); letter-spacing: 0.05em; line-height: 1.1; }
+.sheet p { font-size: 18px; color: var(--soft); max-width: 60ch; }
+.pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.pick button { font-size: 24px; font-weight: 600; min-height: 110px; }
+.tips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; padding-left: 20px; margin: 0; color: var(--soft); font-size: 16px; }
+.idx { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.idx button { text-align: left; padding: 14px 16px; font-size: 18px; display: flex; flex-direction: column; gap: 2px; }
+.idx button span { font-size: 14px; color: var(--soft); }
+.idx button.cur { border-color: var(--warn); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.row .big { font-size: 20px; font-weight: 600; padding: 16px 22px; }
+@media (max-width: 640px) { .pick, .idx, .tips { grid-template-columns: minmax(0, 1fr); } .bot { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .clockbox { grid-column: 1 / -1; order: -1; flex-direction: row; gap: 14px; } }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="top">
+    <p class="where" id="where">—</p>
+    <span class="who" id="who">—</span>
+    <button class="small" id="lostB">Me perdí</button>
+    <button class="small" id="smB" aria-label="Letra más pequeña">A−</button>
+    <button class="small" id="bgB" aria-label="Letra más grande">A+</button>
+  </div>
+  <div class="track" aria-hidden="true"><i id="track"></i></div>
+  <div class="stage" id="stage" role="button" tabindex="0" aria-label="Tocar para avanzar">
+    <p class="kind" id="kind">—</p>
+    <p class="line" id="line">—</p>
+    <p class="next" id="next"></p>
+  </div>
+  <div class="bot">
+    <button class="nav" id="prevB">← Atrás</button>
+    <div class="clockbox"><span class="clock" id="clock">0:00</span><span class="delta ok" id="delta">Toca «Siguiente» para empezar</span></div>
+    <button class="nav fwd" id="nextB">Siguiente →</button>
+  </div>
+</div>
+
+<div class="sheet" id="startS">
+  <p style="font-size:14px;font-weight:600;letter-spacing:0.22em;color:var(--ink)"><span style="color:var(--mag)">/</span> TELEPROMPTER · OTFS · AFDM</p>
+  <h1>¿Quién va a leer en este iPad?</h1>
+  <p>Tus frases salen grandes y resaltadas. Las de la otra persona salen atenuadas, para que sepas por dónde va.</p>
+  <div class="pick">
+    <button data-me="Andrea" style="border-color:var(--mag);color:var(--mag)">Soy Andrea</button>
+    <button data-me="Pedro" style="border-color:var(--vio);color:var(--vio)">Soy Pedro</button>
+    <button data-me="">Ver todo igual</button>
+  </div>
+  <ul class="tips">
+    <li>Toca la frase o «Siguiente» para avanzar. Desliza o usa las flechas de un teclado o control.</li>
+    <li>El reloj arranca con el primer «Siguiente» y dice si vas a tiempo.</li>
+    <li>«Me perdí» abre la lista de diapositivas para saltar a cualquiera.</li>
+    <li>Los recuadros amarillos son acciones en el computador: no se dicen.</li>
+  </ul>
+</div>
+
+<div class="sheet" id="lostS" hidden>
+  <div class="row"><h1 style="margin-right:auto">¿Dónde vas?</h1><button class="big" id="closeB">Volver</button></div>
+  <div class="row"><button class="big" id="syncB" style="border-color:var(--warn);color:var(--warn)">Ir a donde marca el reloj</button><button class="big" id="resetB">Reiniciar todo</button></div>
+  <div class="idx" id="idx"></div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var D = [
+    { part: "Parte 1 · El problema" },
+    { n: "Diapositiva 1", t: "Portada", who: "Andrea", s: 0, e: 20,
+      say: ["Buenos días. Somos Pedro y Andrea y nos corresponde el último tema: las formas de onda avanzadas, OTFS y AFDM.", "Todo lo que hemos visto hasta hoy supone que el canal casi no cambia mientras dura un símbolo. Hoy veremos qué pasa cuando eso deja de ser cierto."],
+      why: ["La suposición de fondo: OFDM necesita que el canal esté quieto durante un símbolo, que a 15 kHz dura 0,067 ms.", "Si esa suposición falla, fallan dos cosas: la ortogonalidad y la ecualización de un solo coeficiente."] },
+    { n: "Diapositiva 2", t: "Contenido y código QR", who: "Andrea", s: 20, e: 45,
+      say: ["Vamos en cuatro partes: el problema, OTFS, AFDM y una comparación.", "Y no queremos que solo nos escuchen. Escaneen este código con el celular: es un laboratorio que hicimos para que prueben cada idea mientras la explicamos. Cada sección dice a qué diapositivas corresponde.", "@Esperar unos cinco segundos con el código en pantalla."],
+      why: ["El código lleva a karofonse.github.io/otfs-afdm. Si alguien no puede escanear, dicten esa dirección.", "El laboratorio tiene seis estaciones; ustedes muestran cuatro y el reto final."] },
+    { n: "Diapositiva 3", t: "Todo se mueve", who: "Andrea", s: 45, e: 80,
+      say: ["Todos hemos oído una ambulancia. Cuando se acerca, la sirena suena más aguda; cuando se aleja, más grave. La sirena no cambió: cambió la frecuencia que nos llega, porque la fuente se mueve. Ese es el efecto Doppler.", "En el dibujo se ve por qué: por delante de la fuente los frentes de onda quedan apretados, y por detrás quedan separados.", "Con las ondas de radio pasa lo mismo. Y para OFDM es grave, porque necesita que cada subportadora llegue justo en su frecuencia."],
+      why: ["Frentes apretados = llegan más seguidos = frecuencia más alta.", "En OFDM las subportadoras están separadas Δf = 1/T. Con esa separación exacta, cada una vale cero en el centro de las demás. Si se corren, deja de cumplirse."] },
+    { n: "Diapositiva 4", t: "El Doppler en números", who: "Andrea", s: 80, e: 115,
+      say: ["¿Qué tan grande es ese corrimiento? Es la velocidad por la frecuencia portadora, dividido la velocidad de la luz.", "En LTE y 5G las subportadoras están separadas 15 kilohertz. Un carro a 120 kilómetros por hora produce 390 hertz: nada. Un tren a 500 produce 1,6 kilohertz, el 11 %. Y un satélite de órbita baja produce 48 kilohertz: más de tres subportadoras.", "Veámoslo en el laboratorio."],
+      why: ["Fórmula: f_D = v · f_c / c, con v en m/s.", "El tren: 500 ÷ 3,6 = 138,9 m/s; × 3,5 × 10⁹ ÷ 3 × 10⁸ = 1.620 Hz; ÷ 15.000 = 11 %.", "El satélite daría 50,7 kHz si volara directo hacia nosotros; se cita unos 48 kHz como máximo real."] },
+    { web: 1, n: "En la página · Estación 1", t: "Calculadora de Doppler", who: "Andrea", s: 115, e: 160,
+      say: ["@Pedro cambia a la pestaña del laboratorio, baja a la estación 1 y pulsa «Carro».", "Esta es la estación uno. Las curvas moradas son las subportadoras como salen; las rosadas, como llegan; las líneas blancas, donde muestrea el receptor. Con el carro, todo coincide.", "@Pedro pulsa «Tren».", "Con el tren ya se separan, y el aviso dice «ICI apreciable». Eso es interferencia entre portadoras: cada subportadora se mete en la vecina.", "@Pedro pulsa «Satélite LEO».", "Y con el satélite, OFDM se rompe.", "Además, cada camino del multitrayecto tiene su propio Doppler, así que no se corrige con un solo ajuste. El canal cambia en frecuencia y cambia en el tiempo: se dice que es doblemente selectivo.", "@Pedro vuelve a la presentación y avanza a la diapositiva 5."],
+      why: ["Cada curva es el espectro de una subportadora. Las rosadas se corren exactamente la fracción de Δf que marca el número.", "Los umbrales del aviso (5 % y 30 %) los escogimos nosotros para explicar; no son de un estándar. La degradación real es gradual.", "Doblemente selectivo: selectivo en frecuencia por los retardos y selectivo en tiempo por el Doppler.", "Cada camino llega con un ángulo distinto, por eso tiene un Doppler distinto."] },
+    { n: "Diapositiva 5", t: "El canal en dos dominios", who: "Andrea", s: 160, e: 225,
+      say: ["Esta es la idea más importante de la exposición. El mismo canal se puede dibujar de dos maneras.", "A la izquierda, como lo ve OFDM: una rejilla de tiempo y frecuencia. Las manchas son zonas donde la señal llega fuerte o débil, y no se quedan quietas. El receptor tiene que estimar ese mapa sin parar.", "A la derecha, el mismo canal en retardo–Doppler. Cada punto es un camino físico: el rayo directo, el reflejo en un edificio, el reflejo en un camión. El eje horizontal es el retardo, que depende de la distancia. El vertical es el Doppler, que depende de la velocidad.", "Este mapa es disperso, porque son pocos puntos, y es estable, porque la distancia y la velocidad de un camión no cambian en un milisegundo.", "Es como describir el tráfico anotando la distancia y la velocidad de cada carro, en vez de tomar una foto cada segundo."],
+      why: ["Las manchas salen de sumar los caminos: donde llegan en fase la señal es fuerte, donde se cancelan hay desvanecimiento.", "Los dos mapas tienen la misma información. Se pasa de uno a otro con una transformada de Fourier en dos dimensiones.", "Las dos palabras clave son disperso y estable."] },
+    { web: 1, n: "En la página · Estación 2", t: "Arma tu canal", who: "Andrea", s: 225, e: 270,
+      say: ["@Pedro cambia al laboratorio, baja a la estación 2 y lleva «Movilidad» a cero.", "En la estación dos pueden armar su propio canal. Con la movilidad en cero, el mapa de la izquierda se congela: sin movimiento no hay Doppler.", "@Pedro sube «Movilidad» al máximo.", "Al subirla, el mapa cambia cada vez más rápido. En cambio, los puntos de la derecha solo se separan en vertical y se quedan ahí.", "@Pedro apaga «Camión», espera dos segundos y lo vuelve a encender.", "Si quitamos el camión, la izquierda cambia por completo y la derecha solo pierde un punto. Por eso conviene trabajar en retardo–Doppler. Pedro les cuenta cómo.", "@Pedro vuelve a la presentación y avanza a la diapositiva 6. Desde aquí Andrea maneja el computador."],
+      why: ["Movilidad en cero: quedan franjas horizontales fijas. Hay selectividad en frecuencia pero no en tiempo. Es el canal para el que se diseñó OFDM.", "Si dejaran un solo camino, la izquierda quedaría de un solo color: sin otro camino con quién interferir no hay desvanecimiento."] },
+    { part: "Parte 2 · OTFS" },
+    { n: "Diapositiva 6", t: "OTFS", who: "Pedro", s: 270, e: 285,
+      say: ["Gracias, Andrea. Si el canal es tan simple en retardo–Doppler, pongamos los datos ahí mismo. Eso es OTFS, Orthogonal Time Frequency Space, propuesta por Hadani y sus colegas en 2017."],
+      why: ["Idea en una línea: escribir los símbolos en el dominio donde el canal se queda quieto."] },
+    { n: "Diapositiva 7", t: "Una rejilla retardo–Doppler", who: "Pedro", s: 285, e: 330,
+      say: ["En OFDM cada símbolo QAM va en una casilla de tiempo–frecuencia. En OTFS va en una casilla de una rejilla retardo–Doppler de M por N: M posiciones de retardo y N de Doppler.", "Una transformada, la ISFFT, reparte ese símbolo por todo el plano tiempo–frecuencia.", "En OFDM, si una subportadora cae en un desvanecimiento, ese símbolo se pierde. Aquí ningún símbolo depende de una sola casilla: todos ven el mismo canal promedio. Eso es aprovechar la diversidad completa.", "La resolución de la rejilla la dan el ancho de banda, para el retardo, y la duración de la trama, para el Doppler."],
+      why: ["Resolución: Δτ = 1/(M·Δf) y Δν = 1/(N·T).", "Ejemplo: M = 512 y Δf = 15 kHz dan 130 ns, unos 39 m. N = 128 da 117 Hz, unos 36 km/h a 3,5 GHz.", "Diversidad: cuántas versiones independientes del canal ve cada símbolo.", "Matiz: la diversidad completa de OTFS es asintótica o requiere una rotación de fase."] },
+    { web: 1, n: "En la página · Estación 3", t: "Coloca un símbolo", who: "Pedro", s: 330, e: 370,
+      say: ["@Andrea cambia al laboratorio, baja a la estación 3 y toca una casilla de la primera rejilla.", "En la estación tres, Andrea pone un símbolo en la primera rejilla. Miren la del medio: siempre queda llena. Las 64 casillas tienen la misma energía; solo cambia la fase, y por eso cambia el dibujo.", "La tercera rejilla es lo que recibe el detector: tres copias del símbolo, una por cada camino, corridas en retardo y en Doppler.", "@Andrea toca otra casilla y luego pulsa «Símbolo al azar».", "Si lo movemos, el patrón cambia, pero siempre son tres copias.", "@Andrea vuelve a la presentación y avanza a la diapositiva 8."],
+      why: ["La rejilla es de 8 × 8 para que se vea. Horizontal es retardo, vertical es Doppler.", "En la del medio, rosado y morado son parte real positiva y negativa: es la fase, no la energía.", "El canal de la página tiene tres caminos fijos: sin desplazamiento, 2 casillas de retardo, y 4 de retardo con 2 de Doppler.", "Si una copia se sale por un borde, reaparece por el opuesto: los índices son circulares."] },
+    { n: "Diapositiva 8", t: "La cadena de transmisión", who: "Pedro", s: 370, e: 455,
+      say: ["¿Cómo se construye? La buena noticia es que no hay que botar OFDM: OTFS se monta encima. Sigamos la cadena.", "Primero, los símbolos QAM en la rejilla retardo–Doppler.", "Segundo, la ISFFT, la transformada inversa simpléctica de Fourier, que los pasa a tiempo–frecuencia. No se asusten con el nombre: es una FFT en un eje y una IFFT en el otro.", "Tercero, la transformada de Heisenberg, que es simplemente un modulador OFDM: toma la rejilla y genera la señal en el tiempo.", "Después viene el canal, con sus pocos caminos. Y en el receptor se hace lo inverso: la transformada de Wigner, que es el demodulador OFDM, y la SFFT para volver a retardo–Doppler.", "Por eso la frase del centro: en la práctica, OTFS es OFDM más una precodificación en dos dimensiones.", "¿Y el detector? Recibe lo que vimos en el laboratorio: una copia de cada símbolo por camino. Matemáticamente es una convolución en dos dimensiones. Como hay pocos caminos, hay pocas copias, y eso lo aprovechan detectores como el de paso de mensajes o el MMSE."],
+      why: ["Heisenberg y Wigner generalizan el modulador y el demodulador OFDM; con pulso rectangular son exactamente OFDM.", "Convolución 2D: sumar copias de la rejilla, cada una desplazada y multiplicada por la ganancia de su camino.", "Paso de mensajes y MMSE son dos familias de detectores. Basta con saber que aprovechan que cada símbolo recibido mezcla pocos símbolos transmitidos."] },
+    { n: "Diapositiva 9", t: "Ventajas y retos", who: "Pedro", s: 455, e: 510,
+      say: ["Hagamos el balance.", "Ventajas. Es robusta frente al Doppler alto, que era el problema. El canal es disperso y casi constante, así que se estima una vez por trama. Aprovecha la diversidad completa. Y reutiliza el hardware OFDM.", "Retos, porque nada es gratis. La ecualización es en dos dimensiones, más compleja. Hay que recibir toda la trama antes de detectar, y eso agrega latencia. Los pilotos necesitan una zona de guarda en retardo y en Doppler, que consume recursos. Y si el Doppler de un camino no cae exacto en una casilla, lo que se llama Doppler fraccional, su energía se riega a las vecinas.", "Para bajar ese overhead aparece la segunda forma de onda. Andrea.", "@Andrea avanza a la diapositiva 10. Desde aquí Pedro maneja el computador."],
+      why: ["Piloto: símbolo conocido para medir el canal. En OTFS se rodea de un rectángulo vacío del orden de (2·l_max + 1) × (4·k_max + 1) casillas.", "Overhead: recursos que no llevan datos.", "Latencia: hay que esperar los N símbolos de la trama antes de detectar."] },
+    { part: "Parte 3 · AFDM" },
+    { n: "Diapositiva 10", t: "AFDM", who: "Andrea", s: 510, e: 530,
+      say: ["OTFS cambió el dominio. AFDM hace otra cosa: deja los datos en un solo eje, como OFDM, pero cambia la subportadora.", "AFDM es Affine Frequency Division Multiplexing, propuesta por Bemani, Ksairi y Kountouris en 2021. Su protagonista es esta señal que se está dibujando: un chirp."],
+      why: ["«Afín» porque la transformada equivale a inclinar el plano tiempo–frecuencia.", "Diferencia con OTFS en una línea: OTFS trabaja en dos dimensiones, AFDM en una."] },
+    { n: "Diapositiva 11", t: "Tonos frente a chirps", who: "Andrea", s: 530, e: 570,
+      say: ["En OFDM cada subportadora es un tono: una frecuencia fija, una línea horizontal en tiempo–frecuencia.", "En AFDM cada subportadora es un chirp: su frecuencia sube de forma lineal. Es una línea inclinada que recorre toda la banda y, al llegar arriba, vuelve a entrar por abajo.", "Un tono es una nota sostenida; un chirp es una sirena que sube.", "Como cada chirp pasa por todas las frecuencias, ningún dato queda atrapado en un desvanecimiento. Y los chirps siguen siendo ortogonales entre sí."],
+      why: ["La frecuencia es la rapidez con que cambia la fase. Fase cuadrática (t²) da frecuencia que crece linealmente.", "Los chirps se usan en radar y en LoRa porque resisten el Doppler.", "Siguen siendo ortogonales porque todas las líneas son paralelas: misma pendiente, distinto punto de partida."] },
+    { web: 1, n: "En la página · Estación 4", t: "Inclina la subportadora", who: "Andrea", s: 570, e: 610,
+      say: ["@Pedro cambia al laboratorio, baja a la estación 4 y sube «Pendiente c₁» al máximo.", "En la estación cuatro hay un control que se llama pendiente c uno. Con la pendiente alta, la onda de arriba se va apretando y las líneas de abajo quedan inclinadas.", "@Pedro lleva «Pendiente c₁» a cero.", "Ahora Pedro la lleva a cero: las líneas quedan horizontales y la onda es un tono puro. El aviso lo dice: esto es OFDM. O sea, OFDM es un caso particular de AFDM.", "@Pedro deja la pendiente a la mitad y mueve «Subportadora».", "Y al cambiar de subportadora, la línea resaltada es otra, pero siempre paralela a las demás.", "@Pedro vuelve a la presentación y avanza a la diapositiva 12."],
+      why: ["El deslizador es una escala didáctica: qué fracción de la banda barre el chirp. No es el valor numérico de c₁.", "El salto que se ve en la onda es la frecuencia dando la vuelta dentro de la banda, no un error."] },
+    { n: "Diapositiva 12", t: "La transformada DAFT", who: "Andrea", s: 610, e: 695,
+      say: ["¿Cómo se generan esos chirps? Con la transformada afín discreta de Fourier, la DAFT. El nombre impresiona, pero miren la cadena: es una IFFT, la misma de OFDM, entre dos multiplicaciones por un chirp. Por eso el transmisor es casi tan sencillo como el de OFDM.", "En la fórmula se ve. El término n m sobre N es la IFFT de siempre. Los términos c uno por n al cuadrado y c dos por m al cuadrado son los dos chirps: una fase cuadrática significa una frecuencia que crece linealmente.", "Al final se agrega un prefijo, como en OFDM, pero se llama chirp-periódico porque respeta la periodicidad del chirp.", "Tres ideas sobre los parámetros.", "Primera: c uno es la pendiente que movimos en el laboratorio, y se ajusta al Doppler máximo del canal. Así cada camino cae en una posición distinta en el receptor, no se enciman, y se logra la diversidad completa.", "Segunda: con c uno y c dos en cero queda OFDM, como acabamos de ver.", "Tercera: todo ocurre en una dimensión, así que los pilotos necesitan guarda en un eje y no en dos. Esa es su ventaja frente a OTFS: menos overhead.", "Pedro las compara.", "@Pedro avanza a la diapositiva 13. Desde aquí Andrea maneja el computador."],
+      why: ["Cada camino desplaza el símbolo a la posición (α_i + 2·N·c₁·l_i) mod N. Con c₁ = 0 solo cuenta el Doppler; con c₁ ≠ 0 también el retardo, y los caminos se separan.", "Elección: c₁ = (2·(α_max + ξ) + 1) / (2·N), con α_max el Doppler máximo en subportadoras y ξ un margen.", "c₂ no afecta la separación de caminos; se elige pequeño o irracional.", "CPP: como el prefijo cíclico, con una corrección de fase."] },
+    { part: "Parte 4 · Comparación y cierre" },
+    { n: "Diapositiva 13", t: "Lado a lado", who: "Pedro", s: 695, e: 770,
+      say: ["Pongamos las tres lado a lado.", "Dominio de los datos: OFDM trabaja en tiempo–frecuencia, OTFS en retardo–Doppler y AFDM en el dominio afín.", "Portadora base: tonos, pulsos en dos dimensiones y chirps.", "Transformada: una IFFT; una transformada en dos dimensiones más OFDM; y una sola transformada en una dimensión.", "Con Doppler alto, OFDM sufre interferencia entre portadoras y las otras dos son robustas.", "Diversidad: OFDM sin codificación no la aprovecha, OTFS la alcanza de forma asintótica y AFDM la tiene demostrada en canales doblemente selectivos.", "Guarda de pilotos: aquí gana AFDM, porque protege el piloto en un eje y no en dos.", "Receptor: OFDM es el más sencillo, OTFS el más complejo y AFDM queda en el medio.", "La conclusión: OFDM sigue siendo la mejor opción cuando el canal es lento. OTFS y AFDM son para alta movilidad, y AFDM busca el mismo beneficio con menos overhead. Esta tabla también está en la estación cinco del laboratorio."],
+      why: ["Si preguntan cuál es mejor: con Doppler alto rinden parecido; AFDM gasta menos en pilotos, OTFS tiene más años de investigación.", "Guarda de pilotos: rectángulo en OTFS, segmento en AFDM.", "El PAPR de ambas es comparable al de OFDM."] },
+    { n: "Diapositiva 14", t: "Dónde hacen falta", who: "Pedro", s: 770, e: 815,
+      say: ["¿Dónde hacen falta? Donde el Doppler sea grande.", "Trenes de alta velocidad. Vehículos conectados, donde dos carros que se cruzan duplican la velocidad relativa. Satélites de órbita baja. Drones y aviación. Y acústica submarina, porque el sonido viaja tan lento que el Doppler relativo es enorme.", "Resalto una: ISAC, comunicación y sensado integrados. Retardo y Doppler son distancia y velocidad, justo lo que mide un radar. La misma señal transmite datos y detecta objetos.", "Para ubicarnos: hoy 5G usa CP-OFDM y DFT-s-OFDM. OTFS y AFDM son candidatas para 6G."],
+      why: ["Acústica submarina: el sonido va a unos 1.500 m/s, así que v/c es enorme aun a baja velocidad.", "ISAC: al estimar el canal para comunicarse, el receptor ya obtuvo distancia y velocidad de los reflectores.", "Ninguna de las dos está en un estándar todavía."] },
+    { n: "Diapositiva 15", t: "Tres ideas para llevar", who: "Ambos", s: 815, e: 850,
+      say: ["A:Para cerrar, tres ideas. Uno: con alta movilidad, el Doppler rompe la ortogonalidad de OFDM.", "P:Dos: OTFS cambia el dominio. Pone los datos en retardo–Doppler, donde el canal es disperso y casi no cambia.", "A:Tres: AFDM cambia la portadora. Usa chirps en lugar de tonos, trabaja en una dimensión y necesita menos overhead.", "P:Y las dos son candidatas para 6G."],
+      why: ["Si se quedan en blanco en cualquier momento, vuelvan a estas tres frases."] },
+    { web: 1, n: "Diapositiva 16 · Estación 6", t: "Reto y preguntas", who: "Pedro", s: 850, e: 880,
+      say: ["P:Antes de las preguntas, un reto. En la estación seis del laboratorio hay cuatro preguntas sobre lo que acabamos de explicar.", "@Andrea cambia al laboratorio, baja a la estación 6 y responde la primera pregunta para mostrar cómo funciona.", "P:La página les dice de inmediato si acertaron. Si contestan bien las cuatro, ya pueden explicar el tema.", "@Andrea vuelve a la diapositiva 16, que deja el código QR en pantalla.", "P:El código sigue en pantalla. Muchas gracias. ¿Preguntas?"],
+      why: ["Respuestas del reto: el efecto Doppler; retardo–Doppler; chirps; OFDM.", "Para la ronda de preguntas, repasen el capítulo 6 de la guía de estudio.", "Si no saben algo: «Eso no lo cubrimos; lo que sí podemos decir es…» y vuelvan a una de las tres ideas."] }
+  ];
+  var CH = [], BL = [];
+  function split(t) {
+    var parts = t.match(/[^.?!]+[.?!]+[»”"]?\s*|[^.?!]+$/g) || [t], out = [], cur = "";
+    parts.forEach(function (s) { var n = (cur + s).trim().split(/\s+/).length; if (cur && n > 26) { out.push(cur.trim()); cur = s; } else { cur += s; } });
+    if (cur.trim()) out.push(cur.trim()); return out;
+  }
+  D.forEach(function (d) {
+    if (d.part) return;
+    var b = { n: d.n, t: d.t, who: d.who, s: d.s, e: d.e, first: CH.length, web: !!d.web }, items = [];
+    d.say.forEach(function (t) {
+      if (t.charAt(0) === "@") { items.push({ act: true, text: t.slice(1), w: 8 }); return; }
+      var who = d.who, m = /^([AP]):/.exec(t); if (m) { who = m[1] === "A" ? "Andrea" : "Pedro"; t = t.slice(2); }
+      split(t).forEach(function (s) { items.push({ who: who, text: s, w: s.split(/\s+/).length }); });
+    });
+    var tot = 0, acc = 0; items.forEach(function (i) { tot += i.w; });
+    items.forEach(function (i) { i.b = BL.length; i.ts = d.s + (d.e - d.s) * acc / tot; acc += i.w; i.te = d.s + (d.e - d.s) * acc / tot; CH.push(i); });
+    BL.push(b);
+  });
+  var TOTAL = 880, me = null, i = 0, run = false, t0 = 0, base = 0;
+  function mmss(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+  function col(w) { return w === "Andrea" ? "var(--mag)" : w === "Pedro" ? "var(--vio)" : "var(--ok)"; }
+  function elapsed() { return base + (run ? (Date.now() - t0) / 1000 : 0); }
+  function show() {
+    var c = CH[i], b = BL[c.b], st = $("stage");
+    $("where").innerHTML = ""; var bb = document.createElement("b"); bb.textContent = b.n; $("where").appendChild(bb); $("where").appendChild(document.createTextNode(" · " + b.t + "  (" + (i + 1) + " de " + CH.length + ")"));
+    $("track").style.width = ((i + 1) / CH.length * 100) + "%";
+    st.className = "stage"; st.scrollTop = 0;
+    if (c.act) {
+      var mineA = me && c.text.indexOf(me) === 0;
+      st.classList.add("act"); $("kind").textContent = mineA ? "Acción · la haces tú, no se dice" : "Acción · no se dice";
+      $("who").textContent = "Acción"; $("who").style.color = "var(--warn)";
+    } else {
+      var mine = !me || c.who === me;
+      st.classList.add(mine ? "mine" : "other"); st.style.setProperty("--me", col(c.who));
+      $("kind").textContent = me ? (mine ? "Te toca · dilo tú" : "Habla " + c.who + " · tú escuchas") : "Habla " + c.who;
+      $("who").textContent = c.who; $("who").style.color = col(c.who);
+    }
+    $("line").textContent = c.text;
+    var n = CH[i + 1], nx = $("next"); nx.innerHTML = "";
+    if (n) { var lab = document.createElement("b"); lab.textContent = "Sigue" + (n.act ? " (acción): " : n.who !== c.who || c.act ? " (" + n.who + "): " : ": "); nx.appendChild(lab); nx.appendChild(document.createTextNode(n.text)); }
+    else { nx.textContent = "Fin del guion."; }
+    $("nextB").textContent = i === CH.length - 1 ? "Fin" : "Siguiente →";
+    tick();
+  }
+  function tick() {
+    var t = elapsed(), c = CH[i], d = $("delta"); $("clock").textContent = mmss(t);
+    if (!run && base === 0) { d.className = "delta ok"; d.textContent = "Toca «Siguiente» para empezar"; return; }
+    if (t > c.te + 8) { d.className = "delta late"; d.textContent = "Atraso " + mmss(t - c.te); }
+    else if (t < c.ts - 8) { d.className = "delta early"; d.textContent = "Adelanto " + mmss(c.ts - t); }
+    else { d.className = "delta ok"; d.textContent = "A tiempo"; }
+    if (!run) d.textContent += " · en pausa";
+  }
+  function start() { if (!run) { t0 = Date.now(); run = true; wake(); } }
+  function go(k) { if (k > i) start(); i = Math.max(0, Math.min(CH.length - 1, k)); show(); }
+  var lock = null;
+  function wake() { try { if (navigator.wakeLock) navigator.wakeLock.request("screen").then(function (l) { lock = l; }).catch(function () {}); } catch (e) {} }
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && run) wake(); });
+
+  $("nextB").addEventListener("click", function () { go(i + 1); });
+  $("prevB").addEventListener("click", function () { go(i - 1); });
+  $("stage").addEventListener("click", function () { go(i + 1); });
+  document.addEventListener("keydown", function (e) {
+    if (!$("startS").hidden || !$("lostS").hidden) return;
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown" || e.key === "Enter") { e.preventDefault(); go(i + 1); }
+    if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); go(i - 1); }
+  });
+  var sx = null;
+  $("app").addEventListener("touchstart", function (e) { sx = e.touches[0].clientX; }, { passive: true });
+  $("app").addEventListener("touchend", function (e) { if (sx === null) return; var dx = e.changedTouches[0].clientX - sx; sx = null; if (Math.abs(dx) > 70) { go(i + (dx < 0 ? 1 : -1)); } }, { passive: true });
+
+  var fs = 1; try { fs = parseFloat(localStorage.getItem("tele-fs")) || 1; } catch (e) {}
+  function setFs(v) { fs = Math.max(0.6, Math.min(1.8, v)); document.documentElement.style.setProperty("--fs", fs); try { localStorage.setItem("tele-fs", fs); } catch (e) {} }
+  setFs(fs);
+  $("smB").addEventListener("click", function () { setFs(fs - 0.1); });
+  $("bgB").addEventListener("click", function () { setFs(fs + 0.1); });
+
+  document.querySelectorAll("[data-me]").forEach(function (b) { b.addEventListener("click", function () { me = b.getAttribute("data-me") || null; $("startS").hidden = true; show(); }); });
+  function openLost() {
+    var box = $("idx"); box.innerHTML = "";
+    BL.forEach(function (b, k) {
+      var bt = document.createElement("button"); if (CH[i].b === k) bt.className = "cur";
+      bt.appendChild(document.createTextNode(b.n + " · " + b.t)); var sp = document.createElement("span"); sp.textContent = "Habla " + b.who + " · empieza en " + mmss(b.s); bt.appendChild(sp);
+      bt.addEventListener("click", function () { $("lostS").hidden = true; i = b.first; show(); }); box.appendChild(bt);
+    });
+    $("lostS").hidden = false;
+  }
+  $("lostB").addEventListener("click", openLost);
+  $("closeB").addEventListener("click", function () { $("lostS").hidden = true; });
+  $("syncB").addEventListener("click", function () { var t = elapsed(), k = 0; CH.forEach(function (c, j) { if (t >= c.ts) k = j; }); $("lostS").hidden = true; i = k; show(); });
+  $("resetB").addEventListener("click", function () { run = false; base = 0; i = 0; $("lostS").hidden = true; $("startS").hidden = false; show(); });
+  $("clock").parentNode.addEventListener("click", function () { if (run) { base = elapsed(); run = false; } else if (base > 0) { t0 = Date.now(); run = true; } tick(); });
+  setInterval(tick, 500);
+  show();
+})();
+</script>
+
+</body>
+</html>
